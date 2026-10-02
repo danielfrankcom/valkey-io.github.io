@@ -1,0 +1,107 @@
+# PREVIEW ONLY: not part of PR #602. This file lives only in the one "PREVIEW ONLY:" commit on the fork's `preview`
+# branch, on top of fix/ai-libraries-595.
+#
+# Builds the pushed commit the way zola-deploy.yml builds valkey.io (the same content repositories at their default
+# branches, the same init scripts and Zola action), then publishes it as this fork's GitHub Pages project site at
+# PREVIEW_ORIGIN + PREVIEW_PATH. .github/preview/adapt-build.py moves the site under that path, removes analytics,
+# and marks every page noindex.
+name: "PREVIEW ONLY: deploy the preview branch to GitHub Pages"
+
+on:
+  push:
+    branches: [preview]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-pages
+  cancel-in-progress: false
+
+env:
+  PREVIEW_ORIGIN: https://danielfrankcom.github.io
+  PREVIEW_PATH: /valkey-io.github.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # zola-deploy.yml checks out `main` here; the preview builds the pushed commit instead.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: website
+
+      - name: Checkout valkey-doc
+        uses: actions/checkout@v4
+        with:
+          repository: valkey-io/valkey-doc
+          path: valkey-doc
+
+      - name: Checkout valkey
+        uses: actions/checkout@v4
+        with:
+          repository: valkey-io/valkey
+          path: valkey
+
+      - name: Checkout valkey-bloom
+        uses: actions/checkout@v4
+        with:
+          repository: valkey-io/valkey-bloom
+          path: valkey-bloom
+
+      - name: Checkout valkey-search
+        uses: actions/checkout@v4
+        with:
+          repository: valkey-io/valkey-search
+          path: valkey-search
+
+      - name: Checkout valkey-json
+        uses: actions/checkout@v4
+        with:
+          repository: valkey-io/valkey-json
+          path: valkey-json
+
+      - name: Init commands, topics and clients
+        run: |
+          cd website
+          ./build/init-topics-and-clients.sh ../valkey-doc/topics \
+            ../valkey-doc/clients
+          ./build/init-commands.sh ../valkey-doc/commands \
+            ../valkey/src/commands ../valkey-bloom/src/commands \
+            ../valkey-json/src/commands ../valkey-search/src/commands
+
+      - name: Build only
+        uses: shalzz/zola-deploy-action@v0.22.0
+        env:
+          BUILD_DIR: website
+          BUILD_ONLY: true
+          BUILD_THEMES: false
+          BUILD_FLAGS: --base-url ${{ env.PREVIEW_ORIGIN }}${{ env.PREVIEW_PATH }}
+
+      # The Zola action runs in a container as root, so public/ belongs to root.
+      - name: Take ownership of the built site
+        run: sudo chown -R "$(id -u):$(id -g)" website/public
+
+      - name: Move the site under its path, remove analytics, add noindex
+        run: python3 website/.github/preview/adapt-build.py website/public "$PREVIEW_PATH"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./website/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
