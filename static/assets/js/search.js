@@ -18,8 +18,23 @@ document.addEventListener('DOMContentLoaded', function() {
     trigger.setAttribute('compact', '');
     slot.append(trigger);
     // The modal goes on <body>, inside the nav it would be hidden while the mobile menu is closed.
-    document.body.append(createModal());
+    const modal = createModal();
+    document.body.append(modal);
+    removeDuplicateCloseButtons(modal);
 });
+// The modal moves the header we give it into its dialog. Pagefind's header sets itself up again
+// when it is reconnected, which wraps its first close button inside its own content and adds
+// a second one. Only the header's direct close button is kept, so on mobile there is one X.
+function removeDuplicateCloseButtons(modal) {
+    const remove = function() {
+        modal.querySelectorAll('.pf-modal-header-content .pf-modal-close').forEach(function(button) {
+            button.remove();
+        });
+    };
+    remove();
+    // The dialog may be built after the modal connects, so watch for it as well.
+    new MutationObserver(remove).observe(modal, { childList: true, subtree: true });
+}
 
 // Each page's breadcrumb is a filter rather than metadata, since Pagefind searches metadata and
 // breadcrumbs shouldn't change the results. The result template only sees metadata, so this copies
