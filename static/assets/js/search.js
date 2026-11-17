@@ -18,23 +18,8 @@ document.addEventListener('DOMContentLoaded', function() {
     trigger.setAttribute('compact', '');
     slot.append(trigger);
     // The modal goes on <body>, inside the nav it would be hidden while the mobile menu is closed.
-    const modal = createModal();
-    document.body.append(modal);
-    removeDuplicateCloseButtons(modal);
+    document.body.append(createModal());
 });
-// The modal moves the header we give it into its dialog. Pagefind's header sets itself up again
-// when it is reconnected, which wraps its first close button inside its own content and adds
-// a second one. Only the header's direct close button is kept, so on mobile there is one X.
-function removeDuplicateCloseButtons(modal) {
-    const remove = function() {
-        modal.querySelectorAll('.pf-modal-header-content .pf-modal-close').forEach(function(button) {
-            button.remove();
-        });
-    };
-    remove();
-    // The dialog may be built after the modal connects, so watch for it as well.
-    new MutationObserver(remove).observe(modal, { childList: true, subtree: true });
-}
 
 // Each page's breadcrumb is a filter rather than metadata, since Pagefind searches metadata and
 // breadcrumbs shouldn't change the results. The result template only sees metadata, so this copies
@@ -90,13 +75,17 @@ function putExactTitleMatchesFirst(instance) {
 // Pagefind's default modal contents, written out so the results can use RESULT_TEMPLATE.
 function createModal() {
     const modal = document.createElement('pagefind-modal');
-    modal.innerHTML = `
+    // Parse the contents in an inert <template> so the Pagefind elements stay un-upgraded until the
+    // modal has moved them into its dialog; otherwise each one initializes twice.
+    const template = document.createElement('template');
+    template.innerHTML = `
         <pagefind-modal-header><pagefind-input></pagefind-input></pagefind-modal-header>
         <pagefind-modal-body>
             <pagefind-summary></pagefind-summary>
             <pagefind-results>${RESULT_TEMPLATE}</pagefind-results>
         </pagefind-modal-body>
         <pagefind-modal-footer><pagefind-keyboard-hints></pagefind-keyboard-hints></pagefind-modal-footer>`;
+    modal.append(template.content);
     return modal;
 }
 
